@@ -12,15 +12,8 @@ import NonlinearFitting
 import os
 import time
 
-"""
-Todo:
-    -mechanism to choose time period (parsing)
-    -iterate trough all files, test on wortex trapped : simon
 
-Future:
-    -devise better mathematical model
-"""
-
+#%% example data loading
 def SelectPeaks(folder='data',datetime_start='0-0',datetime_end='np.inf-np.inf',fork_name='auxfork-filterbox'):
     """
     For data of format used in Helsinky
@@ -79,7 +72,10 @@ plt.close('all')
 
 start_time = r'2022/08/18-01:24:21'
 end_time = r'2022/08/18-05:04:24'
-
+"""
+Here is where data loading happens. Feel free to supply your own, fqs, xs, ys are lists arrays.
+Drives, filenames are lists of numbers, str, respectively, both are optional
+"""
 fqs,xs,ys,drives,filenames = SelectPeaks(datetime_start = start_time ,datetime_end=end_time)
 """
 Peak loading happens here ^^
@@ -100,39 +96,25 @@ works on data with Helsinky format only
 xs = [x*7.415e-3 for x in xs]
 ys = [y*7.415e-3 for y in ys]
 
-# =============================================================================
-#     plt.figure()    
-#     plt.plot(data[:,1],data[:,2]*7.415e-3,'r+')
-#     plt.plot(data[:,1],data[:,3]*7.415e-3,'k+')
-#     plt.plot(data[:,1],np.sqrt((data[:,3]*7.415e-3-data[0,3]*7.415e-3)**2 + (data[:,2]*7.415e-3-data[0,2]*7.415e-3)**2),'ro')
-# 
-# 
-# =============================================================================
-
+#%% important part, how loading data and fitting works
 t_start = time.time()
 
 Helsinky_test = NonlinearFitting.HelsinkyFit(drives=drives,fqs=fqs,xs = xs, ys=ys, filenames = filenames)
-Helsinky_test.remove_transient()
+Helsinky_test.remove_transient() #optional method for strongly duffing datapoints, removes data between top and bottom of peaks
 Helsinky_test.fit(vary_pars={'g3':False},init_values={'g3':0})
-
-#plot test
-
 
 t_end = time.time()
 print('Fit took',t_end - t_start,'seconds')
 
+
+#%% this shows how figures are created
 t_start = time.time()
+
 Helsinky_test.figures(path='figures',extension='.png',show=False,save=~Helsinky_test.forwards)
+
 t_end = time.time()
 print('Figures took',t_end - t_start,'seconds')
 
+#%% and here data are saved
 Helsinky_test.save_params(folder='output_textfiles',name='08_18',which_peaks = ~Helsinky_test.forwards)
 Helsinky_test.save_reports(folder='output_results',which_peaks= ~Helsinky_test.forwards)
-
-#%% fixed params
-fixed_pars_values = {'g3':0,'a1':99444.4**2,'a3':-5.521165143870451e+21,'g2':-2.8e3,'g1':25}
-fixed_pars_vary = {'g3':False,'a1':False,'a3':False,'g2':False,'g1':False,'f':False}
-
-Helsinky_fixed = NonlinearFitting.HelsinkyFit(drives=drives,fqs=fqs,xs = xs, ys=ys)
-Helsinky_fixed.fit(vary_pars=fixed_pars_vary ,init_values=fixed_pars_values)
-Helsinky_fixed.figures(path='figures\\fixed',extension='.png',show=False,save=~Helsinky_test.forwards,plot_estimate=False)
