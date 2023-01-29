@@ -1,0 +1,26 @@
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 73
+    # data points      = 120
+    # variables        = 5
+    chi-square         = 6.2086e-04
+    reduced chi-square = 5.3988e-06
+    Akaike info crit   = -1450.62710
+    Bayesian info crit = -1436.68964
+[[Variables]]
+    a1:  9.8889e+09 +/- 111455.869 (0.00%) (init = 9.887855e+09)
+    a3: -5.9018e+21 +/- 1.3857e+20 (2.35%) (init = -6.429044e+21)
+    g1:  9.3786e-07 +/- 5.08378450 (542064851.83%) (init = 26.78546)
+    g2:  7342.22176 +/- 1576.72320 (21.47%) (init = 136.7263)
+    g3:  0 (fixed)
+    f:   0.10969034 +/- 0.00106832 (0.97%) (init = 0.1107941)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(g1, g2) = -0.992
+    C(a1, a3) = -0.866
+    C(a1, g1) = 0.319
+    C(a1, g2) = -0.314
+    C(g1, f)  = 0.218
+    C(g2, f)  = -0.152
+    C(a1, f)  = -0.129
+    C(a3, g2) = 0.113
+    C(a3, g1) = -0.109
