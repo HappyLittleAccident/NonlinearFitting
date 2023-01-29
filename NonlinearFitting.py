@@ -229,7 +229,18 @@ class ResonanceFit:
     """
     Class with minimizing method, and data output methods. Does not work alone, 
     new child class containing "model" and "params_estimate" methods needs to be created.
-    """
+    
+    -------------------
+    
+    fqs : list of numpy arrays \n
+        each array corresponds to measured frequencies from one peak
+    
+    xs, ys : same type as fqs \n
+        corresponds to absorption and dispersion
+    
+    drives : list of numbers or numpy array \n
+        contains drive info for each peak
+        """
     run_fit = False
     def __init__(self,fqs=None,xs=None,ys=None,drives=None,filenames = None):
         """

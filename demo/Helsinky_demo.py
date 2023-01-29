@@ -99,7 +99,7 @@ ys = [y*7.415e-3 for y in ys]
 #%% important part, how loading data and fitting works
 t_start = time.time()
 
-Helsinky_test = NonlinearFitting.HelsinkyFit(drives=drives,fqs=fqs,xs = xs, ys=ys, filenames = filenames)
+Helsinky_test = NonlinearFitting.HelsinkyFit(fqs=fqs,xs = xs, ys=ys,drives=drives, filenames = filenames)
 Helsinky_test.remove_transient() #optional method for strongly duffing datapoints, removes data between top and bottom of peaks
 Helsinky_test.fit(vary_pars={'g3':False},init_values={'g3':0})
 
