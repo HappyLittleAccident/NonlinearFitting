@@ -255,6 +255,32 @@ class ResonanceFit:
         """
         if type(self).__name__ == 'ResonanceFit':
             raise Exception('Create new class with "model" and "params_estimate" functions defined!')
+        
+        if xs == None or ys == None or fqs == None:
+            raise Exception('Required arguments fqs, xs or ys not supplied!')
+        
+        if np.array_equal(drives,None):
+            drives = [None]*len(xs)
+        
+        if np.array_equal(filenames,None):
+            filenames = [None]*len(xs)
+            
+        if not (len(drives) == len(filenames) == len(fqs) == len(xs) == len(ys)):
+            raise Exception('All suplied variables fqs, xs, ys, drives and filenames must have the same length!')
+        
+        if filenames[0] == None:
+            filenames == None
+            
+        if drives[0] == None:
+            drives = None
+        
+        if np.array_equal(drives,None) and np.array_equal(filenames,None):
+            drives,fqs,xs,ys = map(zip(*sorted(zip(drives,fqs,xs,ys))) )
+            
+        elif np.array_equal(drives,None):
+            drives,fqs,xs,ys,filenames = map(list,zip(*sorted(zip(drives,fqs,xs,ys,filenames))) )
+        
+        
         self.fqs = fqs
         self.xs = xs
         self.ys = ys        
@@ -265,6 +291,9 @@ class ResonanceFit:
         self.results = None
         self.init_pars = None
         self.filenames = filenames
+        
+
+            
 
         
 
@@ -337,8 +366,7 @@ class ResonanceFit:
                      override initial bounds for given parameters
         """
 
-        if self.xs == None or self.ys == None:
-            raise Exception('No data supplied')
+
             
         self.forwards = np.ones(len(self.xs),dtype=bool)
         self.zs = [None for x in self.xs]
@@ -385,7 +413,7 @@ class ResonanceFit:
                         vary_pars = {par_name:vary_pars for (par_name, _ ) in params.items()}
                         
                     else:
-                        raise Exception('"vary_pars" must be dictionary')
+                        raise Exception('"vary_pars" must be dictionary or boolean')
                 
                 if type(init_values) != dict:
                     raise Exception('"init_values" must be dictionary')
@@ -465,7 +493,19 @@ class ResonanceFit:
             plot_estimates = plot_estimate
         
         for i,result in enumerate(self.results):
-            if shows[i] or (saves[i] and type(path)==str):
+            if result == None:
+                fq_plot = np.linspace(self.fqs[i][0],self.fqs[i][-1],800)
+                x_plot = np.linspace(0,np.max(self.zs[i])+0.6*np.max(self.zs[i]),800)
+                FQ,X = np.meshgrid(fq_plot,x_plot)
+                
+                fig,ax = plt.subplots()
+                datapoints = ax.plot(self.fqs[i],self.zs[i],'k+',label=r'Amplitude $z = \sqrt{x^2 + y^2}$')
+
+                if plot_estimates[i]:
+                    ax.contour(FQ,X,self.model(self.init_pars[i],FQ*2*np.pi,X),levels = [0] ,colors = 'r',linestyles='dashed')
+                    red_line = Line2D([],[],color='red',linestyle='dashed', label='Initial estimate')
+                    ax.legend(handles = [red_line,datapoints[0]])
+            elif shows[i] or (saves[i] and type(path)==str):
                 #get values for countour plot
                 fq_plot = np.linspace(self.fqs[i][0],self.fqs[i][-1],800)
                 x_plot = np.linspace(0,np.max(self.zs[i])+0.6*np.max(self.zs[i]),800)
@@ -575,7 +615,9 @@ class ResonanceFit:
         j=0
         for result,drive,fq,z,forward,this_peak,fname in zip(self.results,self.drives, self.fqs,
                                                              self.zs,self.forwards,which_peaks,self.filenames):
-            if this_peak:
+            if result == None:
+                lines_to_save.append(['Did not converge'])
+            elif this_peak:
                 num_of_params = len(result.params)
                 line = ['']*(3 + 2*num_of_params + 2)  #each line corresponds to one fit
                 
@@ -620,6 +662,8 @@ class ResonanceFit:
         if np.array_equal(which_peaks,None):
             which_peaks = [True for x in self.xs]
         for i,result in enumerate(self.results):
+            if result == None:
+                result = 'The fit did not converge'
             if which_peaks[i]:
                 if type(name) == str:
                     path = os.path.join(folder,name+str(i+1)+'.txt')
@@ -688,7 +732,7 @@ class HelsinkyFit(ResonanceFit):
         fq_max = fq[np.argmax(z)]
         z_max = np.max(z)
         z_half = z_max/2
-        if self.drives != None:
+        if not np.array_equal(self.drives, None):
             drive=self.drives[i]
         #    #name #init #vary #min #max
         a1 = ('a1',fq0**2,True, 0,   np.inf)
