@@ -61,14 +61,23 @@ def PhaseRoughCorr(xs,ys,show:bool=False):
     return xs_new, ys_new, phase
 
 #%%
-def GetWeightsDefault(xs,fs,f0,width):
+def GetWeightsDefault(xs,fs,f0,width,a,show=False):
     """
     Gives artifficial errors to data according, emphasizing peak data and 
     deprecating edge data
     
     for fiting purposes
     """
-    weights = 1/(((fs-f0)/width)**2 +1) + 1
+    
+    #weights = 1/(((fs-fs[np.argmax(xs)])/width)**2 +1) + a
+    weights = a*np.exp(-(0.2*(fs-fs[np.argmax(xs)])/width)**2) + 1
+    if show:
+        plt.figure()
+        plt.plot(fs/np.pi/2,weights,'r-')
+
+        plt.plot(fs/np.pi/2,xs/np.max(xs),'k+')
+        plt.grid('both')
+        plt.show()
     return weights
 
 #%%
@@ -103,11 +112,17 @@ def ParameterEstimate(fs,xs,ys):
     halfmax = np.max(xs)/2          #height at half maximum
     test_xs = xs[3:np.argmax(xs)]  
     test_ws = fs[3:np.argmax(xs)]
-    w1 = np.interp(halfmax, test_xs, test_ws)
+    try:
+        w1 = np.interp(halfmax, test_xs, test_ws)
+    except Exception as e:
+        print('First interpolate in EdgeFit crashed with error:\n',e)
     
     test_xs = xs[-3:np.argmax(xs):-1]
     test_ws = fs[-3:np.argmax(xs):-1]
-    w2 = np.interp(halfmax, test_xs, test_ws)
+    try:
+        w2 = np.interp(halfmax, test_xs, test_ws)
+    except Exception as e:
+        print('Second interpolate in EdgeFit crashed with error:\n',e)
     
     In_w = np.abs(w2-w1)/np.sqrt(3)
     
@@ -181,13 +196,16 @@ def EdgeFit(f,x,y,treshold,show=False):
         ax.plot(f,y,'b+')
 
     weights = GetWeightsBackground(x, treshold)
-
+    
     init_par = ParameterEstimate(f, x, y)
 
     if show:
         ax.plot(f,np.split(ResonanceLin(f,*init_par),2)[0],'r--',label='init guess absorption')
         ax.plot(f,np.split(ResonanceLin(f,*init_par),2)[1],'g--',label='init guess dispersion')
-    params,_ = curve_fit(ResonanceLin,f, np.ravel([x,y]), init_par, sigma=np.ravel([weights,weights]))
+    try:
+        params,_ = curve_fit(ResonanceLin,f, np.ravel([x,y]), init_par, sigma=np.ravel([weights,weights]))
+    except Exception as e:
+        print(e)
 
     bgnd = params[2:6]
     
@@ -197,13 +215,13 @@ def EdgeFit(f,x,y,treshold,show=False):
     if show:
         ax.plot(f,np.split(ResonanceLin(f,*params),2)[0])
         ax.plot(f,np.split(ResonanceLin(f,*params),2)[1])
-
+        fig.show()
     
     return x,y,params
 
 
 #%% Correct data for phase, lin background
-def Corrections(fq,x,y):
+def Corrections(fq,x,y,treshold,show_EdgeFit=False,show_circles=False):
     """
     Corrects absorption x, dispersion y using "RoughPhaseCorr" and "EdgeFit"
     
@@ -218,8 +236,8 @@ def Corrections(fq,x,y):
     params_edge : fit parameters from "EdgeFit" in list of form \n
     [f0, g1, x_const_bgnd, y_const_bgnd, x_lin_bgnd, y_lin_bgnd, amplitude]
     """
-    x,y,phase = PhaseRoughCorr(x,y)
-    x,y,params_edge = EdgeFit(fq,x,y,0.1,show=False)
+    x,y,phase = PhaseRoughCorr(x,y,show=show_circles)
+    x,y,params_edge = EdgeFit(fq,x,y,treshold,show=show_EdgeFit)
     z = np.sqrt(x**2 + y**2)
     return x,y,z,params_edge
 
@@ -291,9 +309,7 @@ class ResonanceFit:
         self.results = None
         self.init_pars = None
         self.filenames = filenames
-        
-
-            
+        self.optional_params = None
 
         
 
@@ -323,7 +339,7 @@ class ResonanceFit:
                 dist_min = np.min([dist1,dist2])
                 dist_max = np.max([dist1,dist2])
                 
-                min_condition=dist_min > (np.max(x)-np.min(x))*0.05
+                min_condition=dist_min > (np.max(x)-np.min(x))*0.15
                 max_condition=dist_max > (np.max(x)-np.min(x))/5
                 
                 if min_condition and max_condition and np.max(x) != x[j+2]:
@@ -340,7 +356,35 @@ class ResonanceFit:
             
             if show:
                 plt.plot(self.fqs[i],self.xs[i],'k+')
-
+    
+    def optional_settings(self,edge_treshold=0.1,show_EdgeFit:bool=False,
+                          show_circles:bool=False,peak_weight = 1,show_weights:bool = False):
+        """
+        Some additional arguments, to fine tune fits.\n
+        When used, must be called before function 'fit'
+        
+        ---------------------------------------------
+        
+        edge_treshold : float, between 0 and 1 \n
+                        When fist background corrections are made, specifies the height of peak used for edge fit
+                        
+        show_EdgeFit : bool \n
+                        If set to True, shows edge fits in the same order as full fits
+                        
+        show_circles : bool \n
+                        If set to True, shows circle graph corrections in the same order as full fits
+                        
+        peak_weight : float bigger than 0 \n
+                        Specifies the weight of peak data for fits: \n
+                        0 : equal weights for all data \n
+                        1 : the default value \n
+                        for additional information consult function 'GetWeightsDefault'
+                        
+        show_weights : bool \n
+                        Show weight curve with squared amplitude in one picture, for better testing
+                        
+        """
+        self.optional_params = [edge_treshold,show_EdgeFit,show_circles,peak_weight,show_weights]
         
     def fit(self,vary_pars:dict={},init_values:dict={},bounds:dict={}):
         """
@@ -365,8 +409,9 @@ class ResonanceFit:
         bounds : dictionary {'name': (low,high), .. },\n
                      override initial bounds for given parameters
         """
-
-
+        if self.optional_params == None:
+            self.optional_settings(self)
+        [edge_treshold,show_EdgeFit,show_circles,peak_weight,show_weights] = self.optional_params
             
         self.forwards = np.ones(len(self.xs),dtype=bool)
         self.zs = [None for x in self.xs]
@@ -389,7 +434,8 @@ class ResonanceFit:
             
             self.fqs[i]=fq
             try:
-                x,y,z,params_edge = Corrections(fq,x,y)
+                x,y,z,params_edge = Corrections(fq,x,y,treshold=edge_treshold,
+                                                show_EdgeFit=show_EdgeFit,show_circles=show_circles)
         
         
                 self.xs[i] = x
@@ -434,13 +480,15 @@ class ResonanceFit:
                 self.init_pars[i]=params
                 
                 if self.GetWeights == None:
-                    weights = GetWeightsDefault(z,fq,fq0,g1_edge)
+                    weights = GetWeightsDefault(z,fq,fq0,g1_edge,a=peak_weight,show=show_weights)
                 else:
                     weights = self.GetWeights(z,fq,init_params)
+                    
                
                 self.results[i] = lmfit.minimize(self.model_weighted, params, args=(fq, z, weights),gtol=1e-20)
             except:
                 print('fit number {} did not converge, or numpy.interpolate crashed'.format(i+1))
+                
                 self.zs[i] = np.sqrt(x**2 + y**2)
             
             self.fqs[i] = fq/ 2/np.pi
@@ -494,8 +542,8 @@ class ResonanceFit:
         
         for i,result in enumerate(self.results):
             if result == None:
-                fq_plot = np.linspace(self.fqs[i][0],self.fqs[i][-1],800)
-                x_plot = np.linspace(0,np.max(self.zs[i])+0.6*np.max(self.zs[i]),800)
+                fq_plot = np.linspace(self.fqs[i][0],self.fqs[i][-1],400)
+                x_plot = np.linspace(0,np.max(self.zs[i])+0.6*np.max(self.zs[i]),400)
                 FQ,X = np.meshgrid(fq_plot,x_plot)
                 
                 fig,ax = plt.subplots()
@@ -507,8 +555,8 @@ class ResonanceFit:
                     ax.legend(handles = [red_line,datapoints[0]])
             elif shows[i] or (saves[i] and type(path)==str):
                 #get values for countour plot
-                fq_plot = np.linspace(self.fqs[i][0],self.fqs[i][-1],800)
-                x_plot = np.linspace(0,np.max(self.zs[i])+0.6*np.max(self.zs[i]),800)
+                fq_plot = np.linspace(self.fqs[i][0],self.fqs[i][-1],400)
+                x_plot = np.linspace(0,np.max(self.zs[i])+0.6*np.max(self.zs[i]),400)
                 FQ,X = np.meshgrid(fq_plot,x_plot)
                 
                 #plot datapoints
@@ -536,6 +584,7 @@ class ResonanceFit:
                 elif len(names) != len(self.results):
                     raise Exception('Len of "names" does not match with len of "results"')
                 else:
+                    os.makedirs(path,exist_ok= True)
                     fig.savefig(os.path.join(path,names[i]+extension))
                 
 
@@ -555,7 +604,7 @@ class ResonanceFit:
             
         plt.ion()
             
-    def save_params(self,folder:str='',name:str='params',which_peaks=None):
+    def save_params(self,folder:str='output_textfiles',name:str='params',which_peaks=None):
         """
         Saves fit parameters and other important data into .txt file, each line corresponding to one peak.\n
         
@@ -594,7 +643,7 @@ class ResonanceFit:
         """
         
         if self.drives == None:
-            self.drives = [0 for x in self.fqs]
+            self.drives = [np.nan for x in self.fqs]
         
         header = 'forward\tdrive\tfq_max\tz_max'    #make header
 
@@ -638,11 +687,11 @@ class ResonanceFit:
                 j+=1
             
         data_to_save = np.stack(lines_to_save) #create numpy 2D array
-            
+        os.makedirs(folder,exist_ok = True)
         location = os.path.join(folder,name+'.txt') 
         np.savetxt(fname=location,X=data_to_save,header=header,fmt = '%s')  #save file
 
-    def save_reports(self,folder:str='',name:str='report',which_peaks=None):
+    def save_reports(self,folder:str='output_reports',name:str='report',which_peaks=None):
         """
         Saves fit reports from lmfit, each peak goes to one .txt file.
         
@@ -659,6 +708,7 @@ class ResonanceFit:
         which_peaks : optional, array of bool\n
                 each element states if given peak is saved or not
         """
+        os.makedirs(folder,exist_ok = True)
         if np.array_equal(which_peaks,None):
             which_peaks = [True for x in self.xs]
         for i,result in enumerate(self.results):
